@@ -43,8 +43,8 @@
 
     <!-- CAD UI Overlay -->
     <div id="toolbar" class="fixed top-0 left-0 w-full h-[50px] bg-gray-800 border-b border-gray-700 flex items-center px-4 z-50 shadow-md">
-        <div class="font-bold text-sm md:text-base text-blue-400">Autodesk Fusion 360 Style - Mobile Phone Draft</div>
-        <div class="ml-auto text-xs text-gray-400 hidden sm:block">Sudharshan AutoDeskId : 09834899</div>
+        <div class="font-bold text-sm md:text-base text-blue-400">Autodesk Fusion 360 Style - iPhone 17 Pro (White)</div>
+        <div class="ml-auto text-xs text-gray-400 hidden sm:block">Interact with the Isometric view using your mouse.</div>
         <div class="ml-auto text-xs text-blue-300 sm:hidden">Scroll to view all &bull; Interact with Isometric</div>
     </div>
 
@@ -91,8 +91,8 @@
 
         // Colors/Materials simulating solid modeling
         const bodyMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x808080, 
-            roughness: 0.6, 
+            color: 0xf5f5f7, // White/Silver finish
+            roughness: 0.2, 
             metalness: 0.3,
             polygonOffset: true,
             polygonOffsetFactor: 1, 
@@ -107,6 +107,12 @@
             color: 0x222222,
             roughness: 0.2,
             metalness: 0.9
+        });
+        const logoMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222, // Darkened to match exact logo contrast
+            roughness: 0.2,
+            metalness: 0.8,
+            side: THREE.DoubleSide // Ensure it renders properly from the back
         });
         // Line material for CAD edge highlights
         const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 2 });
@@ -158,60 +164,176 @@
         screenMesh.position.z = phoneDepth / 2 + 0.06; // Just above the front face
         phoneGroup.add(screenMesh);
 
-        // Camera Bump (Back)
-        const bumpWidth = 1.0;
-        const bumpHeight = 1.2;
-        const bumpGeo = new THREE.BoxGeometry(bumpWidth, bumpHeight, 0.1);
+        // Camera Bump (Back) - iPhone 17 Pro Style
+        const bumpWidth = 1.4;
+        const bumpHeight = 1.4;
+        const bumpRadius = 0.3;
+        const bumpShape = createRoundedRectShape(bumpWidth, bumpHeight, bumpRadius);
+        const bumpExtrudeSettings = { 
+            depth: 0.1, 
+            bevelEnabled: true, 
+            bevelSegments: 2, 
+            steps: 1, 
+            bevelSize: 0.02, 
+            bevelThickness: 0.02 
+        };
+        const bumpGeo = new THREE.ExtrudeGeometry(bumpShape, bumpExtrudeSettings);
+        bumpGeo.center();
         const bumpMesh = new THREE.Mesh(bumpGeo, bodyMaterial);
-        bumpMesh.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 - 0.2, -phoneDepth/2 - 0.05);
         
-        // Add edges to bump
-        const bumpEdgesGeo = new THREE.EdgesGeometry(bumpGeo);
+        // Position bump at top left of the back (which is top right from the front perspective +X)
+        const bumpX = phoneWidth/2 - bumpWidth/2 - 0.15;
+        const bumpY = phoneHeight/2 - bumpHeight/2 - 0.15;
+        bumpMesh.position.set(bumpX, bumpY, -phoneDepth/2 - 0.05);
+        
+        // Add CAD edges to bump
+        const bumpEdgesGeo = new THREE.EdgesGeometry(bumpGeo, 15);
         const bumpEdges = new THREE.LineSegments(bumpEdgesGeo, edgeMaterial);
         bumpMesh.add(bumpEdges);
         phoneGroup.add(bumpMesh);
 
-        // Camera Lenses
-        const lensGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.15, 16);
+        // Camera Lenses (Pro 3-Lens Layout + Flash/LiDAR)
+        // Note: Looking at the back, +X is Left, -X is Right.
+        const lensGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.12, 24);
+        
+        // Lens 1: Top Left (from back)
         const lens1 = new THREE.Mesh(lensGeo, cameraMaterial);
         lens1.rotation.x = Math.PI / 2;
-        lens1.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 + 0.2, -phoneDepth/2 - 0.1);
+        lens1.position.set(bumpX + 0.25, bumpY + 0.25, -phoneDepth/2 - 0.1);
         phoneGroup.add(lens1);
 
+        // Lens 2: Bottom Left (from back)
         const lens2 = new THREE.Mesh(lensGeo, cameraMaterial);
         lens2.rotation.x = Math.PI / 2;
-        lens2.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 - 0.3, -phoneDepth/2 - 0.1);
+        lens2.position.set(bumpX + 0.25, bumpY - 0.25, -phoneDepth/2 - 0.1);
         phoneGroup.add(lens2);
 
-        // Buttons (Sides)
-        const btnGeo = new THREE.BoxGeometry(0.05, 0.6, 0.1);
-        const btn1 = new THREE.Mesh(btnGeo, bodyMaterial);
-        btn1.position.set(phoneWidth/2 + 0.02, 1.0, 0);
-        phoneGroup.add(btn1);
+        // Lens 3: Middle Right (from back)
+        const lens3 = new THREE.Mesh(lensGeo, cameraMaterial);
+        lens3.rotation.x = Math.PI / 2;
+        lens3.position.set(bumpX - 0.25, bumpY, -phoneDepth/2 - 0.1);
+        phoneGroup.add(lens3);
 
-        const btn2Geo = new THREE.BoxGeometry(0.05, 0.4, 0.1);
-        const btn2 = new THREE.Mesh(btn2Geo, bodyMaterial);
-        btn2.position.set(-phoneWidth/2 - 0.02, 1.2, 0);
-        phoneGroup.add(btn2);
-        const btn3 = new THREE.Mesh(btn2Geo, bodyMaterial);
-        btn3.position.set(-phoneWidth/2 - 0.02, 0.6, 0);
-        phoneGroup.add(btn3);
+        // Flash (Top Right from back)
+        const flashGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.11, 16);
+        const flash = new THREE.Mesh(flashGeo, logoMaterial);
+        flash.rotation.x = Math.PI / 2;
+        flash.position.set(bumpX - 0.25, bumpY + 0.35, -phoneDepth/2 - 0.1);
+        phoneGroup.add(flash);
+        
+        // LiDAR (Bottom Right from back)
+        const lidar = new THREE.Mesh(flashGeo, cameraMaterial);
+        lidar.rotation.x = Math.PI / 2;
+        lidar.position.set(bumpX - 0.25, bumpY - 0.35, -phoneDepth/2 - 0.1);
+        phoneGroup.add(lidar);
+
+        // Add Apple Logo to the Back
+        const logoGroup = new THREE.Group();
+        
+        // Apple Body Shape (drawn as a single continuous path to avoid boolean/hole artifacts)
+        const logoShape = new THREE.Shape();
+        logoShape.moveTo(0, -0.35); 
+        logoShape.bezierCurveTo(-0.18, -0.35, -0.35, -0.22, -0.38, -0.05); 
+        logoShape.bezierCurveTo(-0.42, 0.18, -0.28, 0.35, -0.12, 0.35); 
+        logoShape.bezierCurveTo(-0.06, 0.35, -0.03, 0.32, 0, 0.32); 
+        logoShape.bezierCurveTo(0.03, 0.32, 0.06, 0.35, 0.12, 0.35); 
+        logoShape.bezierCurveTo(0.28, 0.35, 0.40, 0.20, 0.38, 0.08); 
+        
+        // The bite (inward curve on the right side)
+        logoShape.bezierCurveTo(0.24, 0.08, 0.24, -0.14, 0.37, -0.14); 
+
+        logoShape.bezierCurveTo(0.33, -0.28, 0.18, -0.35, 0, -0.35); 
+
+        // Apple Leaf Shape
+        const leafShape = new THREE.Shape();
+        leafShape.moveTo(0.04, 0.37);
+        leafShape.quadraticCurveTo(0.20, 0.37, 0.20, 0.56);
+        leafShape.quadraticCurveTo(0.04, 0.56, 0.04, 0.37);
+
+        const logoExtrude = { depth: 0.01, bevelEnabled: false };
+        const bodyLogoMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(logoShape, logoExtrude), logoMaterial);
+        const leafLogoMesh = new THREE.Mesh(new THREE.ExtrudeGeometry(leafShape, logoExtrude), logoMaterial);
+        
+        logoGroup.add(bodyLogoMesh);
+        logoGroup.add(leafLogoMesh);
+
+        // Position on the back center and rotate to face out. 
+        // -0.06 pushes it past the 0.05 bevel thickness so it doesn't get buried inside the phone body
+        logoGroup.position.set(0, 0, -phoneDepth/2 - 0.06);
+        logoGroup.rotation.y = Math.PI; // Face outwards
+        
+        logoGroup.scale.set(1.2, 1.2, 1); // Adjusted scale to look proportional
+        phoneGroup.add(logoGroup);
+
+        // --------------------------------------------------------
+        // Buttons & Ports
+        // --------------------------------------------------------
+        
+        // Right Side (+X) - Power Button
+        const powerBtnGeo = new THREE.BoxGeometry(0.05, 0.8, 0.1);
+        const powerBtn = new THREE.Mesh(powerBtnGeo, bodyMaterial);
+        powerBtn.position.set(phoneWidth/2 + 0.02, 0.5, 0);
+        phoneGroup.add(powerBtn);
+
+        // Left Side (-X) - Action Button & Volume Buttons
+        const actionBtnGeo = new THREE.BoxGeometry(0.05, 0.3, 0.1);
+        const actionBtn = new THREE.Mesh(actionBtnGeo, bodyMaterial);
+        actionBtn.position.set(-phoneWidth/2 - 0.02, 1.3, 0);
+        phoneGroup.add(actionBtn);
+
+        const volBtnGeo = new THREE.BoxGeometry(0.05, 0.5, 0.1);
+        const volUpBtn = new THREE.Mesh(volBtnGeo, bodyMaterial);
+        volUpBtn.position.set(-phoneWidth/2 - 0.02, 0.7, 0);
+        phoneGroup.add(volUpBtn);
+
+        const volDownBtn = new THREE.Mesh(volBtnGeo, bodyMaterial);
+        volDownBtn.position.set(-phoneWidth/2 - 0.02, 0.1, 0);
+        phoneGroup.add(volDownBtn);
+
+        // Bottom - Charging Port (USB-C) & Speakers
+        const portMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
+        
+        const portGeo = new THREE.BoxGeometry(0.4, 0.1, 0.1);
+        const port = new THREE.Mesh(portGeo, portMat);
+        port.position.set(0, -phoneHeight/2 - 0.02, 0);
+        phoneGroup.add(port);
+
+        // Speaker Grilles
+        const speakerGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.1, 8);
+        for(let i=1; i<=4; i++) {
+            // Left speakers
+            const spkL = new THREE.Mesh(speakerGeo, portMat);
+            spkL.position.set(-0.3 - (i*0.15), -phoneHeight/2 - 0.02, 0);
+            spkL.rotation.z = Math.PI / 2;
+            phoneGroup.add(spkL);
+            
+            // Right speakers
+            const spkR = new THREE.Mesh(speakerGeo, portMat);
+            spkR.position.set(0.3 + (i*0.15), -phoneHeight/2 - 0.02, 0);
+            spkR.rotation.z = Math.PI / 2;
+            phoneGroup.add(spkR);
+        }
 
         scene.add(phoneGroup);
 
         // --------------------------------------------------------
         // 3. Environment & Lighting
         // --------------------------------------------------------
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         scene.add(ambientLight);
 
-        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.5);
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.6);
         dirLight1.position.set(10, 10, 10);
         scene.add(dirLight1);
 
-        const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+        const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
         dirLight2.position.set(-10, 10, -10);
         scene.add(dirLight2);
+
+        // Explicit light for the back of the phone to highlight the logo
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        backLight.position.set(0, 0, -10);
+        scene.add(backLight);
 
         // CAD Grid
         const gridHelper = new THREE.GridHelper(20, 40, 0x555555, 0x444444);
