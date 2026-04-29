@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fusion 360 Style - Mobile Phone Views</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #2a2b2e; /* Dark CAD theme */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #d1d5db;
+            overflow-x: hidden;
+        }
+        #webgl-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            pointer-events: none;
+        }
+        .view-label {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background-color: rgba(31, 41, 55, 0.9);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            z-index: 20;
+            border: 1px solid #4b5563;
+            pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CAD UI Overlay -->
+    <div id="toolbar" class="fixed top-0 left-0 w-full h-[50px] bg-gray-800 border-b border-gray-700 flex items-center px-4 z-50 shadow-md">
+        <div class="font-bold text-sm md:text-base text-blue-400">Autodesk Fusion 360 Style - Mobile Phone Draft</div>
+        <div class="ml-auto text-xs text-gray-400 hidden sm:block">Interact with the Isometric view using your mouse.</div>
+        <div class="ml-auto text-xs text-blue-300 sm:hidden">Scroll to view all &bull; Interact with Isometric</div>
+    </div>
+
+    <!-- Responsive Grid Container (Scrollable on Mobile, Grid on Desktop) -->
+    <div id="views-container" class="grid grid-cols-1 auto-rows-[50vh] md:grid-cols-2 md:grid-rows-2 md:auto-rows-auto w-full mt-[50px] md:h-[calc(100vh-50px)]">
+        <div class="view-elem relative border-b md:border-r border-gray-600" data-view="tv">
+            <div class="view-label">Top View (T.V)</div>
+        </div>
+        <div class="view-elem relative border-b border-gray-600" data-view="iso" style="touch-action: none;">
+            <div class="view-label text-blue-300">Isometric View</div>
+        </div>
+        <div class="view-elem relative border-b md:border-b-0 md:border-r border-gray-600" data-view="fv">
+            <div class="view-label">Front View (F.V)</div>
+        </div>
+        <div class="view-elem relative border-gray-600" data-view="sv">
+            <div class="view-label">Side View (S.V)</div>
+        </div>
+    </div>
+
+    <!-- Fixed Background 3D Canvas -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --------------------------------------------------------
+        // 1. Scene Setup
+        // --------------------------------------------------------
+        const canvas = document.getElementById('webgl-canvas');
+        const scene = new THREE.Scene();
+        // Light grey/blue background typical of CAD modeling spaces
+        scene.background = new THREE.Color(0x313638); 
+
+        const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // We handle sizing dynamically in the render loop for responsiveness
+
+        // --------------------------------------------------------
+        // 2. Build the Mobile Phone Model (CAD Style)
+        // --------------------------------------------------------
+        const phoneGroup = new THREE.Group();
+
+        // Colors/Materials simulating solid modeling
+        const bodyMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x808080, 
+            roughness: 0.6, 
+            metalness: 0.3,
+            polygonOffset: true,
+            polygonOffsetFactor: 1, 
+            polygonOffsetUnits: 1
+        });
+        const screenMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111, 
+            roughness: 0.1, 
+            metalness: 0.8 
+        });
+        const cameraMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222,
+            roughness: 0.2,
+            metalness: 0.9
+        });
+        // Line material for CAD edge highlights
+        const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 2 });
+
+        // A function to create rounded rectangles for the phone body
+        function createRoundedRectShape(width, height, radius) {
+            const shape = new THREE.Shape();
+            const x = -width/2, y = -height/2;
+            shape.moveTo(x, y + radius);
+            shape.lineTo(x, y + height - radius);
+            shape.quadraticCurveTo(x, y + height, x + radius, y + height);
+            shape.lineTo(x + width - radius, y + height);
+            shape.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+            shape.lineTo(x + width, y + radius);
+            shape.quadraticCurveTo(x + width, y, x + width - radius, y);
+            shape.lineTo(x + radius, y);
+            shape.quadraticCurveTo(x, y, x, y + radius);
+            return shape;
+        }
+
+        const phoneWidth = 3.0;
+        const phoneHeight = 6.2;
+        const phoneDepth = 0.35;
+        const cornerRadius = 0.4;
+
+        // Main Body
+        const shape = createRoundedRectShape(phoneWidth, phoneHeight, cornerRadius);
+        const extrudeSettings = { 
+            depth: phoneDepth, 
+            bevelEnabled: true, 
+            bevelSegments: 2, 
+            steps: 1, 
+            bevelSize: 0.05, 
+            bevelThickness: 0.05 
+        };
+        const bodyGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        bodyGeo.center(); // Center on origin
+        const bodyMesh = new THREE.Mesh(bodyGeo, bodyMaterial);
+        
+        // Add CAD edge lines to body
+        const bodyEdgesGeo = new THREE.EdgesGeometry(bodyGeo, 15);
+        const bodyEdges = new THREE.LineSegments(bodyEdgesGeo, edgeMaterial);
+        bodyMesh.add(bodyEdges);
+        phoneGroup.add(bodyMesh);
+
+        // Screen
+        const screenGeo = new THREE.PlaneGeometry(phoneWidth - 0.3, phoneHeight - 0.3);
+        const screenMesh = new THREE.Mesh(screenGeo, screenMaterial);
+        screenMesh.position.z = phoneDepth / 2 + 0.06; // Just above the front face
+        phoneGroup.add(screenMesh);
+
+        // Camera Bump (Back)
+        const bumpWidth = 1.0;
+        const bumpHeight = 1.2;
+        const bumpGeo = new THREE.BoxGeometry(bumpWidth, bumpHeight, 0.1);
+        const bumpMesh = new THREE.Mesh(bumpGeo, bodyMaterial);
+        bumpMesh.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 - 0.2, -phoneDepth/2 - 0.05);
+        
+        // Add edges to bump
+        const bumpEdgesGeo = new THREE.EdgesGeometry(bumpGeo);
+        const bumpEdges = new THREE.LineSegments(bumpEdgesGeo, edgeMaterial);
+        bumpMesh.add(bumpEdges);
+        phoneGroup.add(bumpMesh);
+
+        // Camera Lenses
+        const lensGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.15, 16);
+        const lens1 = new THREE.Mesh(lensGeo, cameraMaterial);
+        lens1.rotation.x = Math.PI / 2;
+        lens1.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 + 0.2, -phoneDepth/2 - 0.1);
+        phoneGroup.add(lens1);
+
+        const lens2 = new THREE.Mesh(lensGeo, cameraMaterial);
+        lens2.rotation.x = Math.PI / 2;
+        lens2.position.set(-phoneWidth/2 + bumpWidth/2 + 0.2, phoneHeight/2 - bumpHeight/2 - 0.3, -phoneDepth/2 - 0.1);
+        phoneGroup.add(lens2);
+
+        // Buttons (Sides)
+        const btnGeo = new THREE.BoxGeometry(0.05, 0.6, 0.1);
+        const btn1 = new THREE.Mesh(btnGeo, bodyMaterial);
+        btn1.position.set(phoneWidth/2 + 0.02, 1.0, 0);
+        phoneGroup.add(btn1);
+
+        const btn2Geo = new THREE.BoxGeometry(0.05, 0.4, 0.1);
+        const btn2 = new THREE.Mesh(btn2Geo, bodyMaterial);
+        btn2.position.set(-phoneWidth/2 - 0.02, 1.2, 0);
+        phoneGroup.add(btn2);
+        const btn3 = new THREE.Mesh(btn2Geo, bodyMaterial);
+        btn3.position.set(-phoneWidth/2 - 0.02, 0.6, 0);
+        phoneGroup.add(btn3);
+
+        scene.add(phoneGroup);
+
+        // --------------------------------------------------------
+        // 3. Environment & Lighting
+        // --------------------------------------------------------
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight1.position.set(10, 10, 10);
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+        dirLight2.position.set(-10, 10, -10);
+        scene.add(dirLight2);
+
+        // CAD Grid
+        const gridHelper = new THREE.GridHelper(20, 40, 0x555555, 0x444444);
+        gridHelper.position.y = -phoneHeight / 2 - 0.5; // Place below the phone
+        scene.add(gridHelper);
+
+        // --------------------------------------------------------
+        // 4. Multi-Camera Setup (Responsive CSS Driven)
+        // --------------------------------------------------------
+        const viewSize = 8; // Scale of orthographic cameras
+        const cameras = {
+            tv: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100),
+            iso: new THREE.PerspectiveCamera(35, 1, 0.1, 100),
+            fv: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100),
+            sv: new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)
+        };
+
+        // 1. Top View (T.V) - Looking down Y axis
+        cameras.tv.position.set(0, 10, 0);
+        cameras.tv.lookAt(0, 0, 0);
+        cameras.tv.up.set(0, 0, -1); 
+
+        // 2. Isometric View - Perspective
+        cameras.iso.position.set(7, 6, 9);
+        cameras.iso.lookAt(0, 0, 0);
+
+        // 3. Front View (F.V) - Looking down Z axis
+        cameras.fv.position.set(0, 0, 10);
+        cameras.fv.lookAt(0, 0, 0);
+
+        // 4. Side View (S.V) - Looking down X axis (Right side)
+        cameras.sv.position.set(10, 0, 0);
+        cameras.sv.lookAt(0, 0, 0);
+
+        // Add interactive controls ONLY to the Isometric View container
+        const isoElem = document.querySelector('[data-view="iso"]');
+        const controls = new THREE.OrbitControls(cameras.iso, isoElem);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --------------------------------------------------------
+        // 5. Render Loop & Responsive Handling
+        // --------------------------------------------------------
+        
+        function render() {
+            // Adjust canvas size to match screen
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+            if (canvas.width !== width || canvas.height !== height) {
+                renderer.setSize(width, height, false);
+            }
+
+            renderer.setClearColor(0x313638);
+            renderer.setScissorTest(true);
+
+            // Render each view based on its HTML element position
+            document.querySelectorAll('.view-elem').forEach(elem => {
+                const rect = elem.getBoundingClientRect();
+                
+                // Skip if off-screen (useful when scrolling on mobile)
+                if (rect.bottom < 0 || rect.top > height || rect.right < 0 || rect.left > width) {
+                    return;
+                }
+
+                // Compute rendering boundaries
+                const viewWidth = rect.right - rect.left;
+                const viewHeight = rect.bottom - rect.top;
+                const viewLeft = rect.left;
+                const viewBottom = height - rect.bottom;
+
+                renderer.setViewport(viewLeft, viewBottom, viewWidth, viewHeight);
+                renderer.setScissor(viewLeft, viewBottom, viewWidth, viewHeight);
+
+                const viewType = elem.dataset.view;
+                const camera = cameras[viewType];
+
+                // Update Camera Aspects seamlessly
+                if (camera.isPerspectiveCamera) {
+                    camera.aspect = viewWidth / viewHeight;
+                    camera.updateProjectionMatrix();
+                } else {
+                    const aspect = viewWidth / viewHeight;
+                    camera.left = -viewSize * aspect / 2;
+                    camera.right = viewSize * aspect / 2;
+                    camera.top = viewSize / 2;
+                    camera.bottom = -viewSize / 2;
+                    camera.updateProjectionMatrix();
+                }
+
+                renderer.render(scene, camera);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); 
+            render();
+        }
+
+        // Start animation loop
+        window.onload = function() {
+            animate();
+        };
+
+    </script>
+</body>
+</html>
